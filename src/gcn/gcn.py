@@ -1,4 +1,3 @@
-
 """
 Grid-Cell Neighborhoods
 
@@ -36,41 +35,35 @@ boundary of the neighborhood.
 
 # TODO: Define a Grid class to represent the grid.
 # TODO: Define a Cell class to represent a cell.
-# TODO: Use numpy arrays instead of lists of lists.
 # TODO: Better encapsulate find_cells_on_boundary.
 
 import argparse
+import sys
+import numpy as np
 import random
 import copy
 import time
 
-def get_example(example: int = 1) -> tuple[list[list[int | float]], int]:
-    """Gets the grid and Manhattan distance threshold used in the examples.
+def get_example(example: int = 1) -> tuple[np.ndarray[tuple[int, int], np.dtype[np.int_]], int]:
+    """Gets the grid and Manhattan distance threshold used in the specified example.
 
     Args:
-        example (int, optional): Number for example (optional). Defaults to 1.
+        example (int, optional): Number for example: {1, 2, 3, 4} (optional). Defaults to 1.
+
+    Raises:
+        ValueError: Raised if example is invalid
 
     Returns:
-        tuple[list[list[int | float]], int]: Tuple of two-dimensional array
-        representing the grid, Manhattan distance threshold
+        tuple[np.ndarray[tuple[int, int], np.dtype[np.int_]], int]: Tuple of two-dimensional 
+        numpy array representing the grid, Manhattan distance threshold
     """
-    grid = [
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
-    ]
+    # Create an 11 x 11 array with all cells initialized to -1
+    grid = np.array([-1] * 121, dtype=np.int_).reshape((11, 11))
 
-    N = 1
+    # Default the Manhattan distance threshold to 0
+    N = 0
 
-    # Set the neighborhood centers
+    # Set the cells where the centers reside to 1
     if example == 1:
         grid[5][5] = 1
         N = 3
@@ -90,7 +83,7 @@ def get_example(example: int = 1) -> tuple[list[list[int | float]], int]:
 
     return grid, N
 
-def generate_random_grid(H: int = None, W: int = None, sampling: float = 0.1) -> list[list[float]]:
+def generate_random_grid(H: int = None, W: int = None, sampling: float = 0.1) -> np.ndarray[tuple[int, int], np.dtype[np.float32]]:
     """Generates a grid of random floating point values with the specified height and width.
 
     If either the height or the width is not specified, then a random value
@@ -103,21 +96,20 @@ def generate_random_grid(H: int = None, W: int = None, sampling: float = 0.1) ->
         sampling (float, optional): Sampling frequency. Defaults to 0.1.
 
     Returns:
-        list[list[float]]: Two-dimensional array of floats representing the grid
+        np.ndarray[tuple[int, int], np.dtype[np.float32]]: Two-dimensional numpy array of
+        floats representing the grid
     """
     # Randomly pick a height and width for the grid between 1 and 10
     H = random.randint(1, 10) if H is None else H
     W = random.randint(1, 10) if W is None else W
+    
+    # Create a one-dimensional list of size H * W with random values
+    values_list = [(random.random() - 0.5 if random.random() < sampling else -1.0) for _ in range(H * W) ]
 
-    # Make sure the grid has is at least 1x1
-    assert H > 0 and W > 0
+    # Return the grid as a two-dimensional numpy array of floats
+    return np.array(values_list, dtype=np.float32).reshape((H, W))
 
-    # Randomly assign each sampled grid cell with a value between -0.5 
-    # and 0.5. Set the unsampled grid cells to -1.0.
-    return [[(random.random() - 0.5 if random.random() < sampling else -1.0) 
-             for _ in range(W)  ] for _ in range(H)]
-
-def load_grid_from_file(filename: str) -> list[list[int | float]]:
+def load_grid_from_file(filename: str) -> np.ndarray[tuple[int, int], np.dtype[np.float32]]:
     """Loads a grid from the specified file.
 
     The format of the grid file is simply lines of whitespace-separated
@@ -129,76 +121,56 @@ def load_grid_from_file(filename: str) -> list[list[int | float]]:
         filename (str): Name of (i.e., the path to) the grid file
 
     Returns:
-        list[list[float]]: Two-dimensional array of floating point
-        values representing the grid
+        np.ndarray[tuple[int, int], np.dtype[np.float32]]: Two-dimensional 
+        numpy array of floating point values representing the grid
     """
-    grid = []
-    
-    with open(filename, 'r') as f:
-        lines = f.readlines()
+    return np.loadtxt(filename)
 
-        for line in lines:
-            # Yuck! Need to serialize/deserialize the Grid object,
-            # but, for expediency, we'll do this for now...
-            grid.append([float(v) for v in line.split()])
-
-    # Assert that grid is a two-dimensional array of fixed width
-    H = len(grid)
-    assert H > 0
-    
-    W = len(grid[0])
-    assert W > 0
-
-    for row in grid:
-        assert len(row) == W
-
-    return grid
-
-def print_two_dimensional_array(array: list[list[int | float | str]]) -> None:
-    """Prints out the provided two-dimensional array.
+def print_grid(array: np.ndarray[tuple[int, int], np.dtype[np.any]], positive_char: chr = "x") -> None:
+    """Prints out the provided grid.
 
     Args:
-        array (list[list[int  |  float  |  str]]): Two-dimensional array
+        array (np.ndarray[tuple[int, int], np.dtype[np.any]]]): Grid as a two-dimensional array
+        positive_char (chr, optional): Character to use for positive values
     """
+    # Get the height and width of the array
+    H, W = array.shape
+    
+    # Build the array string
     array_str = ""
+    for i in range(H):
+        array_str += "["
+        for j in range(W):
+            array_str += positive_char if array[i][j] > 0 else "-"
+        array_str += "]\n"
 
-    # Build the output string while validating that the input is a
-    # two-dimensional array
-    assert isinstance(array, list)
-    for row in array:
-        assert isinstance(row, list)
-        array_str += str(row).replace(",", "").replace("'", "") + '\n'
-
-    # Print out the array, represented as a string
+    # Print out the array string
     print(array_str)
 
-def find_neighborhood_centers(grid: list[list[int | float]]) -> list[tuple[int, int]]:
+def find_neighborhood_centers(grid: np.ndarray[tuple[int, int], np.dtype[np.any]]) -> list[tuple[int, int]]:
     """Finds the neighborhood centers.
 
     Neighborhood centers are those cells with positive values.
 
     Args:
-        grid (list[list[int  |  float]]): Two-dimensional array representing the grid
+        grid (np.ndarray[tuple[int, int], np.dtype[np.any]]): Two-dimensional numpy 
+        array representing the grid
 
     Returns:
         list[tuple[int, int]]: Neighborhood centers as a list of grid coordinate tuples
     """
-    centers = []
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            if grid[i][j] > 0:
-                centers.append((i, j))
+    return list(map(tuple, np.argwhere(grid > 0).tolist()))
 
-    return centers
-
-def find_cells_in_neighborhood_iterative(grid: list[list[int | float]], N: int) -> set[tuple[int, int]]:
+def find_cells_in_neighborhood_iterative(grid: np.ndarray[tuple[int, int], np.dtype[np.any]], N: int) -> set[tuple[int, int]]:
     """Finds the cells in the neighborhood of the centers.
 
     This method iterates over the cells within the specified Manhattan distance threshold
     of the centers in order to determine the neighborhood.
 
     Args:
-        grid (list[list[int  |  float]]): Two-dimensional array representing the grid
+        grid (np.ndarray[tuple[int, int], np.dtype[np.any]]): Two-dimensional numpy array 
+        representing the grid
+
         N (int): Manhattan distance threshold
 
     Returns:
@@ -208,8 +180,7 @@ def find_cells_in_neighborhood_iterative(grid: list[list[int | float]], N: int) 
     cells = set()
 
     # Get the height and width of the grid
-    H = len(grid)
-    W = len(grid[0])
+    H, W = grid.shape
 
     # Get the neighborhood centers
     centers = find_neighborhood_centers(grid)
@@ -235,14 +206,16 @@ def find_cells_in_neighborhood_iterative(grid: list[list[int | float]], N: int) 
 
     return cells, centers
 
-def find_cells_in_neighborhood_recursive(grid: list[list[int | float]], N: int) -> tuple[set[tuple[int, int]], list[tuple[int, int]]]:
+def find_cells_in_neighborhood_recursive(grid: np.ndarray[tuple[int, int], np.dtype[np.any]], N: int) -> tuple[set[tuple[int, int]], list[tuple[int, int]]]:
     """Finds the cells in the neighborhood of the centers.
 
     This method performs a recursive breadth-first search to identify the cells within
     the specified Manhattan distance of each center and, thus, determine the neighborhood.
 
     Args:
-        grid (list[list[int  |  float]]): Two-dimensional array representing the grid
+        grid (np.ndarray[tuple[int, int], np.dtype[np.any]]): Two-dimensional numpy array
+        representing the grid
+
         N (int): Manhattan distance threshold
 
     Returns:
@@ -251,13 +224,16 @@ def find_cells_in_neighborhood_recursive(grid: list[list[int | float]], N: int) 
 
     # Define a function that will be called recursively in order to perform the
     # breadth-first search.
-    def bfs(cell: tuple[int, int], level: int, visited: list[list[bool]]) -> set[tuple[int, int]]:
+    def bfs(cell: tuple[int, int], level: int, visited: np.ndarray[tuple[int, int], np.dtype[np.bool]]) -> set[tuple[int, int]]:
         """Performs a bread-first search for the neighborhood cells.
 
         Args:
             cell (tuple[int, int]: Cell from which to search for neighborhood cells
+            
             level (int): Recursion level (i.e., step from center)
-            visited (list[list[bool]]): Two-dimensional array to track visited cells
+            
+            visited (np.ndarray[tuple[int, int], np.dtype[np.bool]]): Two-dimensional array of bools 
+            to track visited cells
 
         Returns:
             set[tuple[int, int]]: Set of cells in the neighborhood
@@ -267,8 +243,7 @@ def find_cells_in_neighborhood_recursive(grid: list[list[int | float]], N: int) 
 
         # Get the height and width of the grid from the two-dimensional
         # visited array
-        H = len(visited)
-        W = len(visited[0])
+        H, W = visited.shape
 
         # Get the coordinates of the cell
         Y, X = cell
@@ -285,12 +260,9 @@ def find_cells_in_neighborhood_recursive(grid: list[list[int | float]], N: int) 
         # Recurse each of the neighboring directions
         if level > 0:
 
-            # Hard-code the directions to search
-            directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-
-            # Iterate over the directions.
+            # Iterate over the hard-coded directions.
             # TODO: Avoid re-visiting the cell from which we came!
-            for direction in directions:
+            for direction in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
 
                 # Recurse into the next level of cells.
                 cells.update(bfs((Y + direction[0], X + direction[1]), level-1, visited))
@@ -301,12 +273,11 @@ def find_cells_in_neighborhood_recursive(grid: list[list[int | float]], N: int) 
     cells = set()
 
     # Get the height and width of the grid
-    H = len(grid)
-    W = len(grid[0])
+    H, W = grid.shape
 
     # Initialize a two-dimensional array to track the cells that
     # have been visited
-    visited = [[False] * W for _ in range(H)]
+    visited = np.array([False] * (H * W)).reshape(H, W)
 
     # Get the neighborhood centers
     centers = find_neighborhood_centers(grid)
@@ -359,28 +330,27 @@ def find_cells_on_boundary(cells: set[tuple[int, int]], centers: list[tuple[int,
     # of the neighborhood.
     return cells_copy
      
-def main(grid: list[list[int | float]], N: int, bRecurse: False, bBoundary: False) -> None:
+def main(grid: np.ndarray[tuple[int, int], np.dtype[np.any]], N: int, bRecurse: bool = False, bBoundary: bool = False) -> None:
     """Main function
 
     Args:
-        grid (list[list[int  |  float]]): Two-dimensional array representing the grid
+        grid (np.ndarray[tuple[int, int], np.dtype[np.any]]): Two-dimensional numpy array 
+        representing the grid
+        
         N (int): Manhattan distance threshold
-        bRecurse (bool): Use recusive method
-        bboundary (bool): Determine boundary
+        
+        bRecurse (bool, optional): Use recusive method. Defaults to False.
+       
+        bboundary (bool, optional): Determine boundary. Defaults to False.
     """
-    # Validate the grid and Manhattan distance threshold
-    assert len(grid) > 0 and len(grid[0]) > 0
-    assert N >= 0
-
-    # Print out the initial grid
-    print("\nThe initial grid is:")
-    print_two_dimensional_array(grid)
+    # Validate the grid size and Manhattan distance threshold
+    assert grid.size > 0, "The grid cannot be empty!"
+    assert N >= 0, "The Manhattan distance threshold cannot be negative!"
 
     # Print out the two dimensional array showing just the signs
     # of the values in the grid. We'll call this the "signed grid."
-    print("\nThe signed grid is:")
-    grid_signed = [['+' if v > 0 else '-' for v in grid[row]] for row in range(len(grid))]
-    print_two_dimensional_array(grid_signed)
+    print("\nThe signed grid is:\n")
+    print_grid(grid, positive_char = "+")
 
     # Find the cells that make up the neighborhood
     start_time = time.perf_counter_ns()
@@ -394,12 +364,13 @@ def main(grid: list[list[int | float]], N: int, bRecurse: False, bBoundary: Fals
         cells = find_cells_on_boundary(cells, centers, len(grid), len(grid[0]))
 
     # Contruct a grid showing the neighborhood or boundary
-    grid_result = [['-' for _ in range(len(grid[0]))] for _ in range(len(grid))]
+    H, W = grid.shape
+    grid_result = np.array([-1] * (H * W), dtype=np.int_).reshape((H, W))
     for Y, X in cells:
-        grid_result[Y][X] = 'x'
+        grid_result[Y][X] = 1
 
-    print("\nThe resulting grid is:")
-    print_two_dimensional_array(grid_result)      
+    print("\nThe result grid is:\n")
+    print_grid(grid_result)      
 
     # The number of cells in the neighborhood or on the boundary 
     # is just the number of elements in the cells set
@@ -423,12 +394,12 @@ if __name__ == "__main__":
     # Get the user-specified arguments
     args = parser.parse_args()
 
-    # Initialize parameters
-    grid = []
+    # Initialize the parameters
+    grid = np.array([])
     N = args.N
 
     # Get the grid, either using the example, generating a random
-    # one, or reading it from a file
+    # one, or reading it from a file. Bail if there is no grid.
     if args.example:
         grid, N = get_example(args.example)
 
