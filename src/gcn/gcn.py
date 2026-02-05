@@ -384,7 +384,7 @@ def main(grid: list[list[int | float]], N: int, bRecurse: False, bBoundary: Fals
 
     # Find the cells that make up the neighborhood
     start_time = time.perf_counter_ns()
-    cells, centers = find_cells_in_neighborhood_iterative(grid, N) if bRecurse else find_cells_in_neighborhood_recursive(grid, N)
+    cells, centers = find_cells_in_neighborhood_iterative(grid, N) if not bRecurse else find_cells_in_neighborhood_recursive(grid, N)
     stop_time = time.perf_counter_ns()
 
     print(f"The execution time was {(stop_time - start_time) / 1000.0:.2f} microseconds")
